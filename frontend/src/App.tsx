@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MantineProvider} from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
+import { Notifications } from '@mantine/notifications';
 
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -18,6 +19,7 @@ function App() {
 
   return (
     <MantineProvider withGlobalStyles withNormalizeCSS>
+      <Notifications />
       <ModalsProvider>
         <QueryClientProvider client={queryClient}>
           <Router>

@@ -1,20 +1,38 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Paper, TextInput, PasswordInput, Button, Title, Text, Anchor, Container, Group } from '@mantine/core';
+import { useForm } from '@mantine/form';
+import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import api from '../services/api';
 
-interface LoginFormData {
-  email: string;
-  password: string;
-}
+const loginSchema = z.object({
+  email: z.string().email('Invalid email'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
 
 const LoginPage: React.FC = () => {
-  const [formData, setFormData] = useState<LoginFormData>({ email: '', password: '' });
   const navigate = useNavigate();
 
+  const form = useForm<LoginFormData>({
+    initialValues: {
+      email: '',
+      password: '',
+    },
+    validate: (values) => {
+      const result = loginSchema.safeParse(values);
+      if (result.success) {
+        return {};
+      }
+      const fieldErrors = result.error.flatten();
+      return fieldErrors.fieldErrors;
+    },
+  });
+
   const loginMutation = useMutation({
-    mutationFn: ( LoginFormData) =>
+    mutationFn: (data: LoginFormData) =>
       api.post('/auth/login', data).then(res => res.data),
     onSuccess: (data) => {
       localStorage.setItem('token', data.access_token);
@@ -22,18 +40,13 @@ const LoginPage: React.FC = () => {
     },
     onError: (error: any) => {
       console.error('Login failed:', error?.response?.data || error.message);
-      alert('Login failed: ' + (error?.response?.data?.message || 'Unknown error'));
+      const message = error?.response?.data?.message || 'Login failed';
+      form.setFieldError('email', message);
     }
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    loginMutation.mutate(formData);
+  const handleSubmit = (values: LoginFormData) => {
+    loginMutation.mutate(values);
   };
 
   return (
@@ -42,23 +55,19 @@ const LoginPage: React.FC = () => {
         Welcome back!
       </Title>
       <Paper withBorder shadow="md" p={30} mt={30} radius="md">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={form.onSubmit(handleSubmit)}>
           <TextInput
             label="Email"
             placeholder="you@mantine.dev"
             required
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
+            {...form.getInputProps('email')}
           />
           <PasswordInput
             label="Password"
             placeholder="Your password"
             required
             mt="md"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
+            {...form.getInputProps('password')}
           />
           <Button fullWidth mt="xl" type="submit" loading={loginMutation.isPending}>
             Sign in
