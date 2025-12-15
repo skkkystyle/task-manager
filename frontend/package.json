@@ -10,12 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@chakra-ui/form-control": "^2.2.0",
-    "@chakra-ui/modal": "^2.3.1",
-    "@chakra-ui/react": "^3.30.0",
-    "@chakra-ui/table": "^2.1.0",
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
     "@mantine/core": "^8.3.10",
     "@mantine/form": "^8.3.10",
     "@mantine/hooks": "^8.3.10",
