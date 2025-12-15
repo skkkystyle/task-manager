@@ -8,278 +8,562 @@ import {
   ActionIcon,
   Modal,
   TextInput,
+  Textarea,
   Select,
-  Flex,
-  SimpleGrid,
   Box,
   Text,
-  LoadingOverlay,
-  useMantineTheme,
   Alert,
-  useMantineColorScheme,
+  Badge,
+  Menu,
+  Avatar,
+  Container,
+  Stack,
+  Skeleton,
+  Center,
+  Flex,
+  Divider,
+  Card,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { z } from 'zod';
+import { notifications } from '@mantine/notifications';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNotifications } from '@mantine/notifications';
-import { IconEdit, IconTrash, IconPlus, IconAlertCircle, IconCheck } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  IconEdit,
+  IconTrash,
+  IconPlus,
+  IconAlertCircle,
+  IconCheck,
+  IconLogout,
+  IconUser,
+  IconSearch,
+  IconClipboardList,
+  IconCalendar,
+  IconClock,
+  IconX,
+} from '@tabler/icons-react';
 import api from '../services/api';
+import { removeToken, getToken, isTokenValid } from '../utils/auth';
 
 interface Task {
   id: number;
-  title: string;
-  description?: string;
+  title:  string;
+  description?:  string;
   status: 'TODO' | 'IN_PROGRESS' | 'DONE';
   createdAt: string;
+  updatedAt?: string;
 }
 
-const taskSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  description: z.string().optional(),
-  status: z.enum(['TODO', 'IN_PROGRESS', 'DONE']),
-});
+const STATUS_OPTIONS = [
+  { value:  'TODO', label: 'К выполнению' },
+  { value:  'IN_PROGRESS', label: 'В процессе' },
+  { value: 'DONE', label: 'Выполнено' },
+];
 
-type CreateUpdateTaskDto = z.infer<typeof taskSchema> & { id?: number };
+const STATUS_COLORS:  Record<string, string> = {
+  TODO: 'gray',
+  IN_PROGRESS: 'blue',
+  DONE: 'green',
+};
 
-const TasksPage: React.FC = () => {
-  const theme = useMantineTheme();
-  const { colorScheme } = useMantineColorScheme();
-  const notifications = useNotifications();
-  const [opened, setOpened] = useState(false);
-  const [filters, setFilters] = useState<{ status?: string; search?: string }>({});
-  const [editTask, setEditTask] = useState<Task | null>(null);
+const STATUS_LABELS:  Record<string, string> = {
+  TODO: 'К выполнению',
+  IN_PROGRESS: 'В процессе',
+  DONE: 'Выполнено',
+};
+
+const formatDate = (dateString: string): string => {
+  return new Date(dateString).toLocaleDateString('ru-RU');
+};
+
+const formatDateTime = (dateString: string): string => {
+  return new Date(dateString).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month:  '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const getUserEmail = (): string => {
+  const token = getToken();
+  if (token && isTokenValid(token)) {
+    try {
+      const payload = JSON.parse(atob(token. split('.')[1]));
+      return payload.email || 'Пользователь';
+    } catch {
+      return 'Пользователь';
+    }
+  }
+  return 'Пользователь';
+};
+
+interface TaskViewModalProps {
+  task: Task | null;
+  opened: boolean;
+  onClose: () => void;
+  onEdit: (task:  Task) => void;
+  onDelete:  (task: Task) => void;
+}
+
+const TaskViewModal: React.FC<TaskViewModalProps> = ({
+  task,
+  opened,
+  onClose,
+  onEdit,
+  onDelete,
+}) => {
+  if (!task) return null;
+
+  return (
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={
+        <Group gap="sm">
+          <IconClipboardList size={20} />
+          <Text fw={600}>Просмотр задачи</Text>
+        </Group>
+      }
+      size="md"
+      centered
+    >
+      <Stack gap="md">
+        <div>
+          <Text size="sm" c="dimmed" mb={4}>
+            Название
+          </Text>
+          <Group justify="space-between" align="flex-start">
+            <Text size="lg" fw={600} style={{ flex: 1, wordBreak: 'break-word' }}>
+              {task.title}
+            </Text>
+            <Badge color={STATUS_COLORS[task.status]} variant="light" size="lg">
+              {STATUS_LABELS[task.status]}
+            </Badge>
+          </Group>
+        </div>
+
+        <Divider />
+
+        <div>
+          <Text size="sm" c="dimmed" mb={4}>
+            Описание
+          </Text>
+          <Card withBorder padding="sm" radius="sm" bg="gray.0">
+            <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {task.description || 'Описание отсутствует'}
+            </Text>
+          </Card>
+        </div>
+
+        <div>
+          <Text size="sm" c="dimmed" mb={8}>
+            Информация
+          </Text>
+          <Stack gap="xs">
+            <Group gap="xs">
+              <IconCalendar size={16} color="gray" />
+              <Text size="sm">Создано: {formatDateTime(task.createdAt)}</Text>
+            </Group>
+            {task.updatedAt && task.updatedAt !== task.createdAt && (
+              <Group gap="xs">
+                <IconClock size={16} color="gray" />
+                <Text size="sm">Обновлено: {formatDateTime(task. updatedAt)}</Text>
+              </Group>
+            )}
+          </Stack>
+        </div>
+
+        <Divider />
+
+        <Group justify="space-between">
+          <Button
+            variant="light"
+            color="red"
+            leftSection={<IconTrash size={16} />}
+            onClick={() => {
+              onClose();
+              onDelete(task);
+            }}
+          >
+            Удалить
+          </Button>
+          <Group gap="sm">
+            <Button variant="default" onClick={onClose}>
+              Закрыть
+            </Button>
+            <Button
+              leftSection={<IconEdit size={16} />}
+              onClick={() => {
+                onClose();
+                onEdit(task);
+              }}
+            >
+              Редактировать
+            </Button>
+          </Group>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+};
+
+const TasksPage: React. FC = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const form = useForm<CreateUpdateTaskDto>({
-    initialValues: {
-      title: '',
-      description: '',
-      status: 'TODO',
+  const [editModalOpened, setEditModalOpened] = useState(false);
+  const [viewModalOpened, setViewModalOpened] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const form = useForm({
+    initialValues:  {
+      title:  '',
+      description:  '',
+      status:  'TODO' as const,
     },
-    validate: (values) => {
-      const result = taskSchema.safeParse(values);
-      if (result.success) {
-        return {};
-      }
-      const fieldErrors = result.error.flatten();
-      return fieldErrors.fieldErrors;
+    validate: {
+      title: (value) => (value. trim().length === 0 ? 'Название обязательно' : null),
     },
   });
 
   const tasksQuery = useQuery({
-    queryKey: ['tasks', filters],
+    queryKey: ['tasks', statusFilter, searchQuery],
     queryFn: async () => {
-      const params = new URLSearchParams(filters);
+      const params = new URLSearchParams();
+      if (statusFilter) params.append('status', statusFilter);
+      if (searchQuery) params.append('search', searchQuery);
       const res = await api.get(`/tasks?${params.toString()}`);
-      return res.data as Task[];
+      return res. data as Task[];
     },
-    onError: (error: any) => {
-      console.error('Failed to load tasks:', error?.response?.data || error.message);
-      const message = error?.response?.data?.message || 'Failed to load tasks';
-      notifications.show({
-        title: 'Error',
-        message: message,
-        color: 'red',
-        icon: <IconAlertCircle size="1rem" />,
-      });
-    }
   });
 
-  const taskMutation = useMutation({
-    mutationFn: (data: CreateUpdateTaskDto) => {
+  const saveMutation = useMutation({
+    mutationFn: async (data: { id?:  number; title: string; description:  string; status: string }) => {
       if (data.id) {
-        return api.patch(`/tasks/${data.id}`, data).then(res => res.data);
-      } else {
-        return api.post('/tasks', data).then(res => res.data);
+        return api.patch(`/tasks/${data.id}`, data).then((r) => r.data);
       }
+      return api. post('/tasks', data).then((r) => r.data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      setOpened(false);
-      form.reset();
+      queryClient.invalidateQueries({ queryKey:  ['tasks'] });
+      closeEditModal();
       notifications.show({
-        title: 'Success',
-        message: editTask ? 'Task updated successfully' : 'Task created successfully',
+        title: 'Успешно',
+        message: editingTask ? 'Задача обновлена' : 'Задача создана',
         color: 'green',
-        icon: <IconCheck size="1rem" />,
+        icon: <IconCheck size={16} />,
       });
     },
-    onError: (error: any) => {
-      console.error('Task operation failed:', error?.response?.data || error.message);
-      const message = error?.response?.data?.message || 'An error occurred';
+    onError: () => {
       notifications.show({
-        title: 'Error',
-        message: message,
+        title: 'Ошибка',
+        message: 'Не удалось сохранить задачу',
         color: 'red',
-        icon: <IconAlertCircle size="1rem" />,
+        icon: <IconAlertCircle size={16} />,
       });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/tasks/${id}`).then(res => res.data),
-    onSuccess: () => {
+    mutationFn: (id: number) => api.delete(`/tasks/${id}`),
+    onSuccess:  () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       notifications.show({
-        title: 'Success',
-        message: 'Task deleted successfully',
+        title: 'Успешно',
+        message: 'Задача удалена',
         color: 'green',
-        icon: <IconCheck size="1rem" />,
+        icon: <IconCheck size={16} />,
       });
     },
-    onError: (error: any) => {
-      console.error('Task deletion failed:', error?.response?.data || error.message);
-      const message = error?.response?.data?.message || 'Failed to delete task';
+    onError: () => {
       notifications.show({
-        title: 'Error',
-        message: message,
+        title: 'Ошибка',
+        message: 'Не удалось удалить задачу',
         color: 'red',
-        icon: <IconAlertCircle size="1rem" />,
+        icon:  <IconAlertCircle size={16} />,
       });
     },
   });
 
-  const handleCreateClick = () => {
-    setEditTask(null);
+  const handleLogout = () => {
+    removeToken();
+    queryClient.clear();
+    navigate('/login', { replace: true });
+  };
+
+  const openCreateModal = () => {
+    setEditingTask(null);
     form.reset();
-    form.setValues({ title: '', description: '', status: 'TODO' });
-    setOpened(true);
+    setEditModalOpened(true);
   };
 
-  const handleEditClick = (task: Task) => {
-    setEditTask(task);
-    form.setValues({ ...task });
-    setOpened(true);
+  const openEditModal = (task: Task) => {
+    setEditingTask(task);
+    form.setValues({
+      title: task.title,
+      description: task.description || '',
+      status:  task.status,
+    });
+    setEditModalOpened(true);
   };
 
-  const handleModalSubmit = (values: CreateUpdateTaskDto) => {
-    taskMutation.mutate(values);
+  const closeEditModal = () => {
+    setEditModalOpened(false);
+    setEditingTask(null);
+    form.reset();
   };
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value || undefined }));
+  const openViewModal = (task: Task) => {
+    setSelectedTask(task);
+    setViewModalOpened(true);
   };
 
-  if (tasksQuery.isError) {
-    return (
-      <Alert
-        mt="md"
-        icon={<IconAlertCircle size="1rem" />}
-        title="Error"
-        color="red"
-      >
-        Failed to load tasks. Check notifications for details.
-      </Alert>
-    );
-  }
+  const closeViewModal = () => {
+    setViewModalOpened(false);
+    setSelectedTask(null);
+  };
 
-  if (tasksQuery.isLoading) return <div>Loading...</div>;
+  const handleSubmit = (values: typeof form.values) => {
+    saveMutation.mutate({
+      ...values,
+      id: editingTask?. id,
+    });
+  };
 
-  const rows = tasksQuery.data?.map((task) => (
-    <tr key={task.id}>
-      <td>{task.title}</td>
-      <td>{task.description || '-'}</td>
-      <td>{task.status}</td>
-      <td>{new Date(task.createdAt).toLocaleDateString()}</td>
-      <td>
-        <Group spacing="xs">
-          <ActionIcon color="blue" onClick={() => handleEditClick(task)}>
-            <IconEdit size="1rem" />
-          </ActionIcon>
-          <ActionIcon
-            color="red"
-            onClick={() => {
-              if (window.confirm('Are you sure you want to delete this task?')) {
-                deleteMutation.mutate(task.id);
-              }
-            }}
-          >
-            <IconTrash size="1rem" />
-          </ActionIcon>
-        </Group>
-      </td>
-    </tr>
-  ));
+  const handleDelete = (task: Task) => {
+    if (window.confirm(`Удалить задачу "${task.title}"? `)) {
+      deleteMutation.mutate(task.id);
+    }
+  };
+
+  const tasks = tasksQuery. data || [];
 
   return (
-    <Box p="md">
-      <Flex justify="space-between" align="center" mb="md">
-        <Title order={2}>Your Tasks</Title>
-        <Button leftIcon={<IconPlus />} onClick={handleCreateClick}>
-          Add New Task
-        </Button>
-      </Flex>
+    <>
+      <Box
+        style={{
+          backgroundColor: 'white',
+          borderBottom: '1px solid #e9ecef',
+          padding: '12px 0',
+        }}
+      >
+        <Container size="lg">
+          <Flex justify="space-between" align="center">
+            <Group gap="sm">
+              <IconClipboardList size={24} color="#228be6" />
+              <Title order={3}>Task Manager</Title>
+            </Group>
 
-      <SimpleGrid cols={2} mb="md">
-        <Select
-          label="Status"
-          placeholder="Filter by status"
-          data={[
-            { value: 'TODO', label: 'To Do' },
-            { value: 'IN_PROGRESS', label: 'In Progress' },
-            { value: 'DONE', label: 'Done' },
-          ]}
-          value={filters.status || null}
-          onChange={(value) => setFilters(prev => ({ ...prev, status: value || undefined }))}
-        />
-        <TextInput
-          label="Search"
-          placeholder="Search by title..."
-          value={filters.search || ''}
-          onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value || undefined }))}
-        />
-      </SimpleGrid>
+            <Menu shadow="md" width={200}>
+              <Menu.Target>
+                <Button variant="subtle">
+                  <Group gap="xs">
+                    <Avatar size="sm" radius="xl" color="blue">
+                      <IconUser size={14} />
+                    </Avatar>
+                    <Text size="sm">{getUserEmail()}</Text>
+                  </Group>
+                </Button>
+              </Menu.Target>
+              <Menu. Dropdown>
+                <Menu.Item
+                  color="red"
+                  leftSection={<IconLogout size={14} />}
+                  onClick={handleLogout}
+                >
+                  Выйти
+                </Menu.Item>
+              </Menu. Dropdown>
+            </Menu>
+          </Flex>
+        </Container>
+      </Box>
 
-      <Paper shadow="xs" p="md">
-        <Table striped highlightOnHover>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Description</th>
-              <th>Status</th>
-              <th>Date</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows}
-          </tbody>
-        </Table>
-      </Paper>
+      <Container size="lg" py="xl">
+        <Flex justify="space-between" align="center" mb="lg">
+          <div>
+            <Title order={2}>Мои задачи</Title>
+            <Text c="dimmed" size="sm">
+              Всего:  {tasks.length}
+            </Text>
+          </div>
+          <Button leftSection={<IconPlus size={16} />} onClick={openCreateModal}>
+            Новая задача
+          </Button>
+        </Flex>
 
-      <Modal opened={opened} onClose={() => setOpened(false)} title={editTask ? 'Edit Task' : 'Create Task'} centered>
-        <LoadingOverlay visible={taskMutation.isPending} />
-        <form onSubmit={form.onSubmit(handleModalSubmit)}>
-          <TextInput
-            label="Title"
-            required
-            {...form.getInputProps('title')}
-            mb="md"
-          />
-          <TextInput
-            label="Description"
-            {...form.getInputProps('description')}
-            mb="md"
-          />
-          <Select
-            label="Status"
-            required
-            data={[
-              { value: 'TODO', label: 'To Do' },
-              { value: 'IN_PROGRESS', label: 'In Progress' },
-              { value: 'DONE', label: 'Done' },
-            ]}
-            {...form.getInputProps('status')}
-            mb="md"
-          />
-          <Group position="right" mt="md">
-            <Button type="submit">Submit</Button>
-            <Button variant="subtle" onClick={() => setOpened(false)}>Cancel</Button>
+        <Paper p="md" mb="lg" withBorder>
+          <Group grow>
+            <Select
+              placeholder="Все статусы"
+              data={STATUS_OPTIONS}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              clearable
+            />
+            <TextInput
+              placeholder="Поиск..."
+              leftSection={<IconSearch size={16} />}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              rightSection={
+                searchQuery ?  (
+                  <ActionIcon size="sm" variant="subtle" onClick={() => setSearchQuery('')}>
+                    <IconX size={14} />
+                  </ActionIcon>
+                ) : null
+              }
+            />
           </Group>
+        </Paper>
+
+        {tasksQuery.isLoading ? (
+          <Stack>
+            <Skeleton height={50} />
+            <Skeleton height={50} />
+            <Skeleton height={50} />
+          </Stack>
+        ) : tasksQuery.isError ? (
+          <Alert color="red" icon={<IconAlertCircle size={16} />}>
+            Ошибка загрузки задач
+          </Alert>
+        ) : tasks.length === 0 ? (
+          <Paper p="xl" withBorder>
+            <Center>
+              <Stack align="center">
+                <IconClipboardList size={48} color="gray" />
+                <Text c="dimmed">Задач нет</Text>
+                <Button onClick={openCreateModal}>Создать первую задачу</Button>
+              </Stack>
+            </Center>
+          </Paper>
+        ) : (
+          <Paper withBorder style={{ overflow: 'hidden' }}>
+            <Table highlightOnHover style={{ tableLayout: 'fixed', width: '100%' }}>
+              <Table.Thead>
+                <Table. Tr>
+                  <Table.Th style={{ width: '25%' }}>Название</Table.Th>
+                  <Table.Th style={{ width: '35%' }}>Описание</Table. Th>
+                  <Table. Th style={{ width:  '15%' }}>Статус</Table. Th>
+                  <Table. Th style={{ width:  '12%' }}>Дата</Table.Th>
+                  <Table.Th style={{ width: '13%' }}>Действия</Table. Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table. Tbody>
+                {tasks.map((task) => (
+                  <Table. Tr
+                    key={task.id}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => openViewModal(task)}
+                  >
+                    <Table. Td
+                      style={{
+                        maxWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace:  'nowrap',
+                      }}
+                    >
+                      <Text fw={500} truncate="end" title={task.title}>
+                        {task.title}
+                      </Text>
+                    </Table. Td>
+                    <Table. Td
+                      style={{
+                        maxWidth:  0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Text size="sm" c="dimmed" truncate="end" title={task.description || '—'}>
+                        {task. description || '—'}
+                      </Text>
+                    </Table. Td>
+                    <Table.Td>
+                      <Badge color={STATUS_COLORS[task.status]} variant="light">
+                        {STATUS_LABELS[task.status]}
+                      </Badge>
+                    </Table. Td>
+                    <Table. Td>
+                      <Text size="sm">{formatDate(task.createdAt)}</Text>
+                    </Table. Td>
+                    <Table. Td>
+                      <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
+                        <ActionIcon
+                          variant="light"
+                          color="blue"
+                          onClick={() => openEditModal(task)}
+                        >
+                          <IconEdit size={16} />
+                        </ActionIcon>
+                        <ActionIcon
+                          variant="light"
+                          color="red"
+                          onClick={() => handleDelete(task)}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table. Tbody>
+            </Table>
+          </Paper>
+        )}
+      </Container>
+
+      <TaskViewModal
+        task={selectedTask}
+        opened={viewModalOpened}
+        onClose={closeViewModal}
+        onEdit={openEditModal}
+        onDelete={handleDelete}
+      />
+
+      <Modal
+        opened={editModalOpened}
+        onClose={closeEditModal}
+        title={editingTask ?  'Редактировать задачу' : 'Новая задача'}
+        centered
+      >
+        <form onSubmit={form.onSubmit(handleSubmit)}>
+          <Stack>
+            <TextInput
+              label="Название"
+              placeholder="Введите название"
+              required
+              {...form.getInputProps('title')}
+            />
+            <Textarea
+              label="Описание"
+              placeholder="Введите описание"
+              rows={3}
+              {...form. getInputProps('description')}
+            />
+            <Select
+              label="Статус"
+              data={STATUS_OPTIONS}
+              {... form.getInputProps('status')}
+            />
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={closeEditModal}>
+                Отмена
+              </Button>
+              <Button type="submit" loading={saveMutation.isPending}>
+                {editingTask ? 'Сохранить' : 'Создать'}
+              </Button>
+            </Group>
+          </Stack>
         </form>
       </Modal>
-    </Box>
+    </>
   );
 };
 
