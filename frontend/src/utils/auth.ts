@@ -8,7 +8,7 @@ export const isTokenValid = (token: string | null): boolean => {
     const payload = JSON.parse(atob(parts[1]));
 
     if (payload.exp) {
-      const expirationTime = payload.exp * 1000; // JWT exp в секундах
+      const expirationTime = payload.exp * 1000;
       const now = Date.now();
       
       if (now >= expirationTime) {
