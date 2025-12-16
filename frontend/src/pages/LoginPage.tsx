@@ -28,7 +28,7 @@ const loginSchema = z.object({
   password: z
     . string()
     .min(1, 'Пароль обязателен для заполнения')
-    .min(6, 'Пароль должен содержать минимум 6 символов'),
+    .min(8, 'Пароль должен содержать минимум 8 символов'),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;

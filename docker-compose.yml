@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:latest
+    image: postgres:17-alpine
     container_name: task-manager-db
     restart: unless-stopped
     environment:
