@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsNotIn } from 'class-validator';
 import { TaskStatus } from '@prisma/client';
 
 export class CreateTaskDto {
@@ -11,5 +11,8 @@ export class CreateTaskDto {
 
   @IsOptional()
   @IsEnum(TaskStatus)
+  @IsNotIn([TaskStatus.DONE], {
+    message: 'Нельзя создать задачу со статусом "выполнено"'
+  })
   status?: TaskStatus;
 }

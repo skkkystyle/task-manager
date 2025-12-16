@@ -68,6 +68,11 @@ const STATUS_OPTIONS = [
   { value: 'DONE', label: 'Выполнено' },
 ];
 
+const CREATE_STATUS_OPTIONS = [
+  { value: 'TODO', label: 'К выполнению' },
+  { value: 'IN_PROGRESS', label:  'В процессе' },
+];
+
 const STATUS_COLORS:  Record<TaskStatus, string> = {
   TODO: 'gray',
   IN_PROGRESS: 'blue',
@@ -557,7 +562,7 @@ const TasksPage:  React.FC = () => {
             />
             <Select
               label="Статус"
-              data={STATUS_OPTIONS}
+              data={editingTask ? STATUS_OPTIONS : CREATE_STATUS_OPTIONS}
               value={form.values.status}
               onChange={(value) => form.setFieldValue('status', (value as TaskStatus) || 'TODO')}
             />
