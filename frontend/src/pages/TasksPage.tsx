@@ -45,28 +45,36 @@ import {
 import api from '../services/api';
 import { removeToken, getToken, isTokenValid } from '../utils/auth';
 
+type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE';
+
 interface Task {
   id: number;
   title:  string;
   description?:  string;
-  status: 'TODO' | 'IN_PROGRESS' | 'DONE';
-  createdAt: string;
-  updatedAt?: string;
+  status: TaskStatus;
+  createdAt:  string;
+  updatedAt?:  string;
+}
+
+interface TaskFormValues {
+  title:  string;
+  description:  string;
+  status: TaskStatus;
 }
 
 const STATUS_OPTIONS = [
-  { value:  'TODO', label: 'К выполнению' },
-  { value:  'IN_PROGRESS', label: 'В процессе' },
+  { value: 'TODO', label: 'К выполнению' },
+  { value: 'IN_PROGRESS', label:  'В процессе' },
   { value: 'DONE', label: 'Выполнено' },
 ];
 
-const STATUS_COLORS:  Record<string, string> = {
+const STATUS_COLORS:  Record<TaskStatus, string> = {
   TODO: 'gray',
   IN_PROGRESS: 'blue',
   DONE: 'green',
 };
 
-const STATUS_LABELS:  Record<string, string> = {
+const STATUS_LABELS: Record<TaskStatus, string> = {
   TODO: 'К выполнению',
   IN_PROGRESS: 'В процессе',
   DONE: 'Выполнено',
@@ -76,7 +84,7 @@ const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleDateString('ru-RU');
 };
 
-const formatDateTime = (dateString: string): string => {
+const formatDateTime = (dateString:  string): string => {
   return new Date(dateString).toLocaleString('ru-RU', {
     day: '2-digit',
     month:  '2-digit',
@@ -90,7 +98,7 @@ const getUserEmail = (): string => {
   const token = getToken();
   if (token && isTokenValid(token)) {
     try {
-      const payload = JSON.parse(atob(token. split('.')[1]));
+      const payload = JSON.parse(atob(token.split('.')[1]));
       return payload.email || 'Пользователь';
     } catch {
       return 'Пользователь';
@@ -103,8 +111,8 @@ interface TaskViewModalProps {
   task: Task | null;
   opened: boolean;
   onClose: () => void;
-  onEdit: (task:  Task) => void;
-  onDelete:  (task: Task) => void;
+  onEdit: (task: Task) => void;
+  onDelete: (task: Task) => void;
 }
 
 const TaskViewModal: React.FC<TaskViewModalProps> = ({
@@ -169,7 +177,7 @@ const TaskViewModal: React.FC<TaskViewModalProps> = ({
             {task.updatedAt && task.updatedAt !== task.createdAt && (
               <Group gap="xs">
                 <IconClock size={16} color="gray" />
-                <Text size="sm">Обновлено: {formatDateTime(task. updatedAt)}</Text>
+                <Text size="sm">Обновлено: {formatDateTime(task.updatedAt)}</Text>
               </Group>
             )}
           </Stack>
@@ -209,7 +217,7 @@ const TaskViewModal: React.FC<TaskViewModalProps> = ({
   );
 };
 
-const TasksPage: React. FC = () => {
+const TasksPage:  React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -220,14 +228,14 @@ const TasksPage: React. FC = () => {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const form = useForm({
-    initialValues:  {
-      title:  '',
-      description:  '',
-      status:  'TODO' as const,
+  const form = useForm<TaskFormValues>({
+    initialValues: {
+      title: '',
+      description: '',
+      status: 'TODO',
     },
     validate: {
-      title: (value) => (value. trim().length === 0 ? 'Название обязательно' : null),
+      title: (value) => (value.trim().length === 0 ? 'Название обязательно' :  null),
     },
   });
 
@@ -238,22 +246,22 @@ const TasksPage: React. FC = () => {
       if (statusFilter) params.append('status', statusFilter);
       if (searchQuery) params.append('search', searchQuery);
       const res = await api.get(`/tasks?${params.toString()}`);
-      return res. data as Task[];
+      return res.data as Task[];
     },
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (data: { id?:  number; title: string; description:  string; status: string }) => {
+    mutationFn: async (data: TaskFormValues & { id?: number }) => {
       if (data.id) {
         return api.patch(`/tasks/${data.id}`, data).then((r) => r.data);
       }
-      return api. post('/tasks', data).then((r) => r.data);
+      return api.post('/tasks', data).then((r) => r.data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey:  ['tasks'] });
       closeEditModal();
       notifications.show({
-        title: 'Успешно',
+        title:  'Успешно',
         message: editingTask ? 'Задача обновлена' : 'Задача создана',
         color: 'green',
         icon: <IconCheck size={16} />,
@@ -328,20 +336,20 @@ const TasksPage: React. FC = () => {
     setSelectedTask(null);
   };
 
-  const handleSubmit = (values: typeof form.values) => {
+  const handleSubmit = (values:  TaskFormValues) => {
     saveMutation.mutate({
       ...values,
-      id: editingTask?. id,
+      id: editingTask?.id,
     });
   };
 
-  const handleDelete = (task: Task) => {
+  const handleDelete = (task:  Task) => {
     if (window.confirm(`Удалить задачу "${task.title}"? `)) {
       deleteMutation.mutate(task.id);
     }
   };
 
-  const tasks = tasksQuery. data || [];
+  const tasks = tasksQuery.data || [];
 
   return (
     <>
@@ -370,7 +378,7 @@ const TasksPage: React. FC = () => {
                   </Group>
                 </Button>
               </Menu.Target>
-              <Menu. Dropdown>
+              <Menu.Dropdown>
                 <Menu.Item
                   color="red"
                   leftSection={<IconLogout size={14} />}
@@ -378,7 +386,7 @@ const TasksPage: React. FC = () => {
                 >
                   Выйти
                 </Menu.Item>
-              </Menu. Dropdown>
+              </Menu.Dropdown>
             </Menu>
           </Flex>
         </Container>
@@ -412,7 +420,7 @@ const TasksPage: React. FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               rightSection={
-                searchQuery ?  (
+                searchQuery ? (
                   <ActionIcon size="sm" variant="subtle" onClick={() => setSearchQuery('')}>
                     <IconX size={14} />
                   </ActionIcon>
@@ -446,22 +454,22 @@ const TasksPage: React. FC = () => {
           <Paper withBorder style={{ overflow: 'hidden' }}>
             <Table highlightOnHover style={{ tableLayout: 'fixed', width: '100%' }}>
               <Table.Thead>
-                <Table. Tr>
+                <Table.Tr>
                   <Table.Th style={{ width: '25%' }}>Название</Table.Th>
-                  <Table.Th style={{ width: '35%' }}>Описание</Table. Th>
-                  <Table. Th style={{ width:  '15%' }}>Статус</Table. Th>
-                  <Table. Th style={{ width:  '12%' }}>Дата</Table.Th>
-                  <Table.Th style={{ width: '13%' }}>Действия</Table. Th>
+                  <Table.Th style={{ width: '35%' }}>Описание</Table.Th>
+                  <Table.Th style={{ width:  '15%' }}>Статус</Table.Th>
+                  <Table.Th style={{ width: '12%' }}>Дата</Table.Th>
+                  <Table.Th style={{ width: '13%' }}>Действия</Table.Th>
                 </Table.Tr>
               </Table.Thead>
-              <Table. Tbody>
+              <Table.Tbody>
                 {tasks.map((task) => (
-                  <Table. Tr
+                  <Table.Tr
                     key={task.id}
                     style={{ cursor: 'pointer' }}
                     onClick={() => openViewModal(task)}
                   >
-                    <Table. Td
+                    <Table.Td
                       style={{
                         maxWidth: 0,
                         overflow: 'hidden',
@@ -472,28 +480,28 @@ const TasksPage: React. FC = () => {
                       <Text fw={500} truncate="end" title={task.title}>
                         {task.title}
                       </Text>
-                    </Table. Td>
-                    <Table. Td
+                    </Table.Td>
+                    <Table.Td
                       style={{
-                        maxWidth:  0,
-                        overflow: 'hidden',
+                        maxWidth: 0,
+                        overflow:  'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                       }}
                     >
                       <Text size="sm" c="dimmed" truncate="end" title={task.description || '—'}>
-                        {task. description || '—'}
+                        {task.description || '—'}
                       </Text>
-                    </Table. Td>
+                    </Table.Td>
                     <Table.Td>
                       <Badge color={STATUS_COLORS[task.status]} variant="light">
                         {STATUS_LABELS[task.status]}
                       </Badge>
-                    </Table. Td>
-                    <Table. Td>
+                    </Table.Td>
+                    <Table.Td>
                       <Text size="sm">{formatDate(task.createdAt)}</Text>
-                    </Table. Td>
-                    <Table. Td>
+                    </Table.Td>
+                    <Table.Td>
                       <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
                         <ActionIcon
                           variant="light"
@@ -513,7 +521,7 @@ const TasksPage: React. FC = () => {
                     </Table.Td>
                   </Table.Tr>
                 ))}
-              </Table. Tbody>
+              </Table.Tbody>
             </Table>
           </Paper>
         )}
@@ -530,7 +538,7 @@ const TasksPage: React. FC = () => {
       <Modal
         opened={editModalOpened}
         onClose={closeEditModal}
-        title={editingTask ?  'Редактировать задачу' : 'Новая задача'}
+        title={editingTask ? 'Редактировать задачу' : 'Новая задача'}
         centered
       >
         <form onSubmit={form.onSubmit(handleSubmit)}>
@@ -539,18 +547,19 @@ const TasksPage: React. FC = () => {
               label="Название"
               placeholder="Введите название"
               required
-              {...form.getInputProps('title')}
+              {... form.getInputProps('title')}
             />
             <Textarea
               label="Описание"
               placeholder="Введите описание"
               rows={3}
-              {...form. getInputProps('description')}
+              {...form.getInputProps('description')}
             />
             <Select
               label="Статус"
               data={STATUS_OPTIONS}
-              {... form.getInputProps('status')}
+              value={form.values.status}
+              onChange={(value) => form.setFieldValue('status', (value as TaskStatus) || 'TODO')}
             />
             <Group justify="flex-end" mt="md">
               <Button variant="default" onClick={closeEditModal}>
